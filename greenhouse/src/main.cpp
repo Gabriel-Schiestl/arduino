@@ -28,7 +28,8 @@ const uint16_t serverPort = 3000;
 const int soilSensorPin = 34;
 const int lightLevelPin = 32;
 
-int timeCounter = 0;
+unsigned long lastSensorRead = 0;
+const unsigned long sensorInterval = 600000;
 
 WiFiClient client;
 
@@ -37,6 +38,8 @@ DHT dht(DHTPIN, DHTTYPE);
 void setup() {
   Serial.begin(115200);
   analogReadResolution(12);
+
+  dht.begin();
 
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ..");
@@ -54,36 +57,39 @@ void setup() {
 }
 
 void loop() {
-  SensorData data = readDataFromSensors();
-  if(data.temperature != -1 && data.humidity != -1 && data.soilMoisture != -1) {
-    Serial.printf("Temperature: %.2f °C, Humidity: %.2f %%, Soil Moisture: %.2f %%\n", data.temperature, data.humidity, data.soilMoisture);
-    client.printf("Temperature: %.2f °C, Humidity: %.2f %%, Soil Moisture: %.2f %%\n", data.temperature, data.humidity, data.soilMoisture);
-  } else {
-    Serial.println("Failed to read from sensors");
+  if (!client.connected()) {
+    connectToServer();
   }
 
-  while(timeCounter < 600) {
-    requestParameters();
-    DataResponse* response = readServerResponse();
-    if(response != nullptr) {
-        applyServerCommands(*response);
-        delete response;
-    } else {
-        Serial.println("Failed to read server response");
+  unsigned long currentTime = millis();
+  
+  if (currentTime - lastSensorRead >= sensorInterval) {
+    SensorData data = readDataFromSensors();
+    if(data.temperature != -1) {
+      Serial.printf("Temperature: %.2f °C, Humidity: %.2f %%, Soil Moisture: %.2f %%\n", 
+                    data.temperature, data.humidity, data.soilMoisture);
+      sendDataToServer(&data);
     }
-    timeCounter += 5;
-    delay(5000);
+    lastSensorRead = currentTime;
   }
-    timeCounter = 0;
-    SensorData newData = readDataFromSensors();
-    sendDataToServer(&newData);
-    DataResponse* response = readServerResponse();
-    if(response != nullptr) {
-        applyServerCommands(*response);
-        delete response;
-    } else {
-        Serial.println("Failed to read server response");
-    }
+
+  requestParameters();
+  DataResponse* response = readServerResponse();
+  if(response != nullptr) {
+    applyServerCommands(*response);
+    delete response;
+  }
+
+  delay(5000);
+}
+
+void connectToServer() {
+  Serial.println("Connecting to server...");
+  while(!client.connect(serverIP, serverPort)) {
+    Serial.println("Connection failed, retrying...");
+    delay(2000);
+  }
+  Serial.println("Connected to server");
 }
 
 SensorData readDataFromSensors() {
@@ -95,9 +101,7 @@ SensorData readDataFromSensors() {
   }
 
   int soilMoisture = analogRead(soilSensorPin);
-  if(isnan(soilMoisture)) {
-    return SensorData{-1, -1, -1};
-  }
+
   float soilMoisturePercentual = map(soilMoisture, 4095, 0, 0, 100);
 
 //   float lightLevel = analogRead(lightLevelPin);
@@ -108,33 +112,29 @@ SensorData readDataFromSensors() {
 }
 
 void requestParameters() {
-  byte* request = buildRequest(nullptr, "GET", "sensor/parameters");
-  if(request == nullptr) {
+  std::vector<byte> request = buildRequest(nullptr, "GET", "sensor/parameters");
+  if(request.empty()) {
       Serial.println("Failed to build request");
       return;
   }
 
   if(client.connected()) {
-    client.write(request, sizeof(request));
+    client.write(request.data(), request.size());
   } else {
-    Serial.println("Disconnected from server, attempting to reconnect...");
-    while(!client.connect(serverIP, serverPort)) {
-      Serial.println("Reconnection failed, retrying...");
-      delay(2000);
-    }
-    Serial.println("Reconnected to server");
+    connectToServer();
+    client.write(request.data(), request.size());
   }
 }
 
 void sendDataToServer(SensorData* data) {
-  byte* request = buildRequest(data, "POST", "sensor/data");
-  if(request == nullptr) {
+  std::vector<byte> request = buildRequest(data, "POST", "sensor/data");
+  if(request.empty()) {
       Serial.println("Failed to build request");
       return;
   }
 
   if(client.connected()) {
-    client.write(request, sizeof(request));
+    client.write(request.data(), request.size());
   } else {
     Serial.println("Disconnected from server, attempting to reconnect...");
     while(!client.connect(serverIP, serverPort)) {
@@ -142,75 +142,74 @@ void sendDataToServer(SensorData* data) {
       delay(2000);
     }
     Serial.println("Reconnected to server");
+    client.write(request.data(), request.size());
   }
 }
 
-byte* buildRequest(SensorData* sensorData, char* method = "POST", char* route = "sensor/data") {
+std::vector<byte> buildRequest(SensorData* sensorData, const char* method = "POST", const char* route = "sensor/data") {
   if(strlen(method) > 4 || strlen(route) > 12) {
       Serial.println("Method or route string too long");
-      return nullptr;
+      return std::vector<byte>(); 
   }
 
-    static byte header[26];
+  byte header[26];
+  uint16_t payloadLength = 0;
+  std::string payload;
 
-    uint16_t payloadLength = 0;
-    char* payload = nullptr;
-    if(sensorData != nullptr) {
-        payload = buildJsonPayload(*sensorData);
-        payloadLength = strlen(payload);
-    }
+  if(sensorData != nullptr) {
+      payload = buildJsonPayload(*sensorData);
+      payloadLength = payload.length();
+  }
 
-    header[0] = payloadLength >> 8;
-    header[1] = payloadLength & 0xFF;
+  header[0] = payloadLength >> 8;
+  header[1] = payloadLength & 0xFF;
 
-    const char* name = "Device01";
-    memcpy(&header[2], name, strlen(name));
+  const char* name = "Device01";
+  memcpy(&header[2], name, strlen(name));
 
-    if(strlen(method) < 4) {
-        memcpy(&header[10], method, strlen(method));
-        memset(&header[10 + strlen(method)], ' ', 4 - strlen(method));
-    } else {
-        memcpy(&header[10], method, 4);
-    }
+  if(strlen(method) < 4) {
+      memcpy(&header[10], method, strlen(method));
+      memset(&header[10 + strlen(method)], ' ', 4 - strlen(method));
+  } else {
+      memcpy(&header[10], method, 4);
+  }
 
-    if(strlen(route) < 12) {
-        memcpy(&header[14], route, strlen(route));
-        memset(&header[14 + strlen(route)], ' ', 12 - strlen(route));
-    } else {
-        memcpy(&header[14], route, 12);
-    }
+  if(strlen(route) < 12) {
+      memcpy(&header[14], route, strlen(route));
+      memset(&header[14 + strlen(route)], ' ', 12 - strlen(route));
+  } else {
+      memcpy(&header[14], route, 12);
+  }
 
-    byte request[26 + payloadLength];
-    memcpy(&request, header, 26); 
-    if(payloadLength > 0) {
-        memcpy(&request[26], payload, payloadLength);
-    }
+  std::vector<byte> request(26 + payloadLength);
+  memcpy(request.data(), header, 26);
+  if(payloadLength > 0) {
+      memcpy(request.data() + 26, payload.c_str(), payloadLength);
+  }
 
-    return request;
+  return request;
 }
 
-char* buildJsonPayload(const SensorData& data) {
+std::string buildJsonPayload(const SensorData& data) {
     JsonDocument doc;
     doc["temperature"] = data.temperature;
     doc["humidity"] = data.humidity;
     doc["soil_humidity"] = data.soilMoisture;
-    // doc["light"] = data.lightLevel;
 
-    const size_t bufferSize = measureJson(doc);
-    char buffer[bufferSize];
-
-    size_t bytesWritten = serializeJson(doc, buffer, bufferSize);
-    if (bytesWritten == 0) {
-        Serial.println("Erro ao serializar JSON");
-        return nullptr;
-    }
-
-    return buffer;
+    std::string output;
+    serializeJson(doc, output);
+    return output;
 }
 
 DataResponse* readServerResponse() {
-  while(client.available() == 0) {
+  unsigned long timeout = millis() + 5000;
+  while(client.available() == 0 && millis() < timeout) {
       delay(10);
+  }
+  
+  if(client.available() == 0) {
+      Serial.println("Server response timeout");
+      return nullptr;
   }
 
   String response = "";
@@ -223,38 +222,43 @@ DataResponse* readServerResponse() {
 }
 
 DataResponse* parseServerResponse(const char* response) {
+  if(strlen(response) < 3) {
+      Serial.println("Response too short");
+      return nullptr;
+  }
+
   byte header[3] = { (byte)response[0], (byte)response[1], (byte)response[2] };
   if(header[0] == 0x01) {
       Serial.println("Error in server response");
       return nullptr;
   }
 
-    uint16_t payloadLength = (header[1] << 8) | header[2];
+  uint16_t payloadLength = (header[1] << 8) | header[2];
 
-    if(payloadLength > 0) {
-        response += 3;
-    } else {
-        Serial.println("No payload in server response");
-        return nullptr;
-    }
+  if(payloadLength > 0) {
+      response += 3;
+  } else {
+      Serial.println("No payload in server response");
+      return nullptr;
+  }
 
-    DataResponse* dataResponse = new DataResponse();
+  DataResponse* dataResponse = new DataResponse();
 
-    StaticJsonDocument<200> doc;
-    DeserializationError error = deserializeJson(doc, response, payloadLength);
-    if (error) {
-        Serial.print("Failed to parse JSON: ");
-        Serial.println(error.c_str());
-        delete dataResponse;
-        return nullptr;
-    }
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, response);
+  if (error) {
+      Serial.print("Failed to parse JSON: ");
+      Serial.println(error.c_str());
+      delete dataResponse;
+      return nullptr;
+  }
 
-    dataResponse->ventilation = doc["ventilation"] | false;
-    dataResponse->irrigation = doc["irrigation"] | false;
-    dataResponse->lighting = doc["lighting"] | false;
+  dataResponse->ventilation = doc["ventilation"] | false;
+  dataResponse->irrigation = doc["irrigation"] | false;
+  dataResponse->lighting = doc["lighting"] | false;
 
-    return dataResponse;
-} 
+  return dataResponse;
+}
 
 void applyServerCommands(const DataResponse& response) {
     if(response.ventilation) {
