@@ -7,11 +7,14 @@
 #define DHTPIN 4
 #define DHTTYPE DHT11
 
+#define SOILSENSORPIN 34
+#define LIGHTLEVELPIN 35
+
 struct SensorData {
   float temperature;
   float humidity;
   float soilMoisture;
-  // float lightLevel;
+  float lightLevel;
   unsigned long timestamp;
 };
 
@@ -25,9 +28,6 @@ const char* ssid = "";
 const char* password = "";
 const char* serverIP = "";
 const uint16_t serverPort = 3000;
-
-const int soilSensorPin = 34;
-const int lightLevelPin = 32;
 
 unsigned long lastSensorRead = 0;
 const unsigned long sensorInterval = 60000;
@@ -53,15 +53,17 @@ SensorData readDataFromSensors() {
     return SensorData{-1, -1, -1};
   }
 
-  int soilMoisture = analogRead(soilSensorPin);
+  int soilMoisture = analogRead(SOILSENSORPIN);
 
   float soilMoisturePercentual = map(soilMoisture, 4095, 0, 0, 100);
 
-//   float lightLevel = analogRead(lightLevelPin);
-//   if(isnan(lightLevel)) {
-//     return -1;
-//   }
-    return SensorData{temperature, humidity, soilMoisturePercentual, millis()};
+  float lightLevel = analogRead(LIGHTLEVELPIN);
+  if(isnan(lightLevel)) {
+    return SensorData{-1, -1, -1};
+  }
+
+  lightLevel = map(lightLevel, 0, 4095, 0, 100);
+  return SensorData{temperature, humidity, soilMoisturePercentual, lightLevel, millis()};
 }
 
 std::string buildJsonPayload(const SensorData& data) {
@@ -69,6 +71,7 @@ std::string buildJsonPayload(const SensorData& data) {
     doc["temperature"] = data.temperature;
     doc["humidity"] = data.humidity;
     doc["soil_humidity"] = data.soilMoisture;
+    doc["light"] = data.lightLevel;
     doc["timestamp"] = data.timestamp;
 
     std::string output;
