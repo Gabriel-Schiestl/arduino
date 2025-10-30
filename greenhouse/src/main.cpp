@@ -10,6 +10,10 @@
 #define SOILSENSORPIN 34
 #define LIGHTLEVELPIN 35
 
+#define IRRIGATIONPIN 14
+#define VENTILATIONPIN 27
+#define LIGHTINGPIN 26
+
 struct SensorData {
   float temperature;
   float humidity;
@@ -245,20 +249,28 @@ DataResponse* readServerResponse() {
 void applyServerCommands(const DataResponse& response) {
     if(response.ventilation) {
         Serial.println("Activating ventilation system");
+        digitalWrite(VENTILATIONPIN, HIGH);
     } else {
         Serial.println("Deactivating ventilation system");
+        digitalWrite(VENTILATIONPIN, LOW);
     }
 
     if(response.irrigation) {
         Serial.println("Activating irrigation system");
+        digitalWrite(IRRIGATIONPIN, HIGH);
+        delay(10000);
+        digitalWrite(IRRIGATIONPIN, LOW);
     } else {
         Serial.println("Deactivating irrigation system");
+        digitalWrite(IRRIGATIONPIN, LOW);
     }
 
     if(response.lighting) {
         Serial.println("Activating lighting system");
+        digitalWrite(LIGHTINGPIN, HIGH);
     } else {
         Serial.println("Deactivating lighting system");
+        digitalWrite(LIGHTINGPIN, LOW);
     }
 }
 
