@@ -34,7 +34,7 @@ const char* serverIP = "";
 const uint16_t serverPort = 3000;
 
 unsigned long lastSensorRead = 0;
-const unsigned long sensorInterval = 60000;
+const unsigned long sensorInterval = 600000;
 
 WiFiClient client;
 
@@ -61,13 +61,11 @@ SensorData readDataFromSensors() {
 
   float soilMoisturePercentual = map(soilMoisture, 4095, 0, 0, 100);
 
-  float lightLevel = analogRead(LIGHTLEVELPIN);
-  if(isnan(lightLevel)) {
-    return SensorData{-1, -1, -1};
-  }
+  int lightRaw = analogRead(LIGHTLEVELPIN);
+  Serial.println(lightRaw);
+  float lightPercent = map(lightRaw, 0, 4095, 0, 100);
 
-  lightLevel = map(lightLevel, 0, 4095, 0, 100);
-  return SensorData{temperature, humidity, soilMoisturePercentual, lightLevel, millis()};
+  return SensorData{temperature, humidity, soilMoisturePercentual, lightPercent, millis()};
 }
 
 std::string buildJsonPayload(const SensorData& data) {
@@ -305,8 +303,8 @@ void loop() {
   if (currentTime - lastSensorRead >= sensorInterval) {
     SensorData data = readDataFromSensors();
     if(data.temperature != -1) {
-      Serial.printf("Temperature: %.2f °C, Humidity: %.2f %%, Soil Moisture: %.2f %%\n", 
-                    data.temperature, data.humidity, data.soilMoisture);
+      Serial.printf("Temperature: %.2f °C, Humidity: %.2f %%, Soil Moisture: %.2f %%, Light: %.2f %%\n", 
+                    data.temperature, data.humidity, data.soilMoisture, data.lightLevel);
       sendDataToServer(&data);
     }
     lastSensorRead = currentTime;
