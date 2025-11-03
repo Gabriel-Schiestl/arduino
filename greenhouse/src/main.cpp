@@ -27,9 +27,9 @@ struct DataResponse {
   bool lighting;
 };
 
-const char* ssid = "";
-const char* password = "";
-const char* serverIP = "";
+const char* ssid = "GTV_Schiestl";
+const char* password = "@p0o9i8u7";
+const char* serverIP = "192.168.1.5";
 const uint16_t serverPort = 3000;
 
 unsigned long lastSensorRead = 0;
@@ -273,6 +273,11 @@ void applyServerCommands(const DataResponse& response) {
 void setup() {
   Serial.begin(115200);
   analogReadResolution(12);
+  pinMode(SOILSENSORPIN, INPUT);
+  pinMode(LIGHTLEVELPIN, INPUT);
+  pinMode(IRRIGATIONPIN, OUTPUT);
+  pinMode(VENTILATIONPIN, OUTPUT);
+  pinMode(LIGHTINGPIN, OUTPUT);
 
   dht.begin();
 
