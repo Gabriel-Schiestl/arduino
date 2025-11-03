@@ -19,7 +19,6 @@ struct SensorData {
   float humidity;
   float soilMoisture;
   float lightLevel;
-  unsigned long timestamp;
 };
 
 struct DataResponse {
@@ -65,7 +64,7 @@ SensorData readDataFromSensors() {
   Serial.println(lightRaw);
   float lightPercent = map(lightRaw, 0, 4095, 0, 100);
 
-  return SensorData{temperature, humidity, soilMoisturePercentual, lightPercent, millis()};
+  return SensorData{temperature, humidity, soilMoisturePercentual, lightPercent};
 }
 
 std::string buildJsonPayload(const SensorData& data) {
@@ -74,7 +73,6 @@ std::string buildJsonPayload(const SensorData& data) {
     doc["humidity"] = data.humidity;
     doc["soil_humidity"] = data.soilMoisture;
     doc["light"] = data.lightLevel;
-    doc["timestamp"] = data.timestamp;
 
     std::string output;
     serializeJson(doc, output);
