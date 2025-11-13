@@ -27,9 +27,9 @@ struct DataResponse {
   bool lighting;
 };
 
-const char* ssid = "GTV_Schiestl";
-const char* password = "@p0o9i8u7";
-const char* serverIP = "192.168.1.5";
+const char* ssid = "";
+const char* password = "";
+const char* serverIP = "";
 const uint16_t serverPort = 3000;
 
 unsigned long lastSensorRead = 0;
