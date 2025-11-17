@@ -245,20 +245,20 @@ DataResponse* readServerResponse() {
 void applyServerCommands(const DataResponse& response) {
     if(response.ventilation) {
         Serial.println("Activating ventilation system");
-        digitalWrite(VENTILATIONPIN, HIGH);
+        digitalWrite(VENTILATIONPIN, LOW);
     } else {
         Serial.println("Deactivating ventilation system");
-        digitalWrite(VENTILATIONPIN, LOW);
+        digitalWrite(VENTILATIONPIN, HIGH);
     }
 
     if(response.irrigation) {
         Serial.println("Activating irrigation system");
-        digitalWrite(IRRIGATIONPIN, HIGH);
-        delay(10000);
         digitalWrite(IRRIGATIONPIN, LOW);
+        delay(2000);
+        digitalWrite(IRRIGATIONPIN, HIGH);
     } else {
         Serial.println("Deactivating irrigation system");
-        digitalWrite(IRRIGATIONPIN, LOW);
+        digitalWrite(IRRIGATIONPIN, HIGH);
     }
 
     if(response.lighting) {
