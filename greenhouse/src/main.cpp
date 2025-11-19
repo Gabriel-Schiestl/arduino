@@ -155,6 +155,12 @@ void sendDataToServer(SensorData* data) {
     }
     Serial.println("Reconnected to server");
     client.write(request.data(), request.size());
+
+    DataResponse* response = readServerResponse();
+    if(response != nullptr) {
+      applyServerCommands(*response);
+      delete response;
+    }
   }
 }
 
@@ -311,13 +317,13 @@ void loop() {
       sendDataToServer(&data);
     }
     lastSensorRead = currentTime;
-  }
-
-  requestParameters();
-  DataResponse* response = readServerResponse();
-  if(response != nullptr) {
-    applyServerCommands(*response);
-    delete response;
+  } else {
+    requestParameters();
+    DataResponse* response = readServerResponse();
+    if(response != nullptr) {
+      applyServerCommands(*response);
+      delete response;
+    }
   }
 
   delay(5000);
