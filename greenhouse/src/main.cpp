@@ -33,6 +33,7 @@ const char* serverIP = "";
 const uint16_t serverPort = 3000;
 
 unsigned long lastSensorRead = 0;
+unsigned long lastIrrigation = 0;
 const unsigned long sensorInterval = 600000;
 
 WiFiClient client;
@@ -195,10 +196,13 @@ DataResponse* parseServerResponse(const uint8_t* data, size_t len) {
       delete dataResponse;
       return nullptr;
   }
-
+  Serial.println("Parsed JSON from server: " + String(jsonStart));
   dataResponse->ventilation = doc["TurnOnVentilation"] | doc["ventilation"] | false;
   dataResponse->irrigation = doc["TurnOnIrrigation"] | doc["irrigation"] | false;
   dataResponse->lighting = doc["TurnOnLighting"] | doc["lighting"] | false;
+
+  Serial.println("DATA RESPONSE " + String(dataResponse->lighting) + " " + String(dataResponse->irrigation) + " " + String(dataResponse->ventilation));
+  Serial.println("------------------");
 
   return dataResponse;
 }
@@ -257,11 +261,12 @@ void applyServerCommands(const DataResponse& response) {
         digitalWrite(VENTILATIONPIN, HIGH);
     }
 
-    if(response.irrigation) {
+    if(response.irrigation && (millis() - lastIrrigation >= 86400000)) {
         Serial.println("Activating irrigation system");
         digitalWrite(IRRIGATIONPIN, LOW);
         delay(2000);
         digitalWrite(IRRIGATIONPIN, HIGH);
+        lastIrrigation = millis();
     } else {
         Serial.println("Deactivating irrigation system");
         digitalWrite(IRRIGATIONPIN, HIGH);
@@ -274,6 +279,7 @@ void applyServerCommands(const DataResponse& response) {
         Serial.println("Deactivating lighting system");
         digitalWrite(LIGHTINGPIN, LOW);
     }
+    Serial.println("---------------------");
 }
 
 void setup() {
