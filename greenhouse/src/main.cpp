@@ -291,6 +291,10 @@ void setup() {
   pinMode(VENTILATIONPIN, OUTPUT);
   pinMode(LIGHTINGPIN, OUTPUT);
 
+  digitalWrite(IRRIGATIONPIN, HIGH);
+  digitalWrite(VENTILATIONPIN, HIGH);
+  digitalWrite(LIGHTINGPIN, LOW);
+
   dht.begin();
 
   WiFi.begin(ssid, password);
