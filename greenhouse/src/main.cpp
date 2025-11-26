@@ -60,6 +60,7 @@ const uint16_t serverPort = 3000;   // Porta TCP do servidor
 // ============================================
 unsigned long lastSensorRead = 0;          // Marca o último momento em que os sensores foram lidos
 unsigned long lastIrrigation = 0;          // Marca o último momento em que a irrigação foi ativada
+bool firstIrrigation = true;        
 const unsigned long sensorInterval = 600000; // Intervalo entre leituras de sensores (600000ms = 10 minutos)
 
 // ============================================
@@ -470,12 +471,13 @@ void applyServerCommands(const DataResponse& response) {
     // ===== CONTROLE DA IRRIGAÇÃO =====
     // Só permite irrigar se passaram pelo menos 24 horas desde a última irrigação
     // 86400000 ms = 24 horas
-    if(response.irrigation && (millis() - lastIrrigation >= 86400000)) {
+    if(response.irrigation && (firstIrrigation || (millis() - lastIrrigation >= 86400000))) {
         Serial.println("Activating irrigation system");
         digitalWrite(IRRIGATIONPIN, LOW);    // Liga o relé
         delay(2000);                         // Mantém ligado por 2 segundos
         digitalWrite(IRRIGATIONPIN, HIGH);   // Desliga o relé
         lastIrrigation = millis();           // Atualiza timestamp da última irrigação
+        firstIrrigation = false;           
     } else {
         Serial.println("Deactivating irrigation system");
         digitalWrite(IRRIGATIONPIN, HIGH);   // Garante que está desligado
